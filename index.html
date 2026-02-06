@@ -143,6 +143,35 @@
         oscillator.stop(ctx.currentTime + 0.3);
       };
 
+      // Generate slobbering/eating sound for good food
+      const playSlober = () => {
+        const ctx = initAudio();
+        if (!ctx) return;
+        
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        // Wet slobbering sound with quick frequency changes
+        oscillator.frequency.setValueAtTime(300, ctx.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(180, ctx.currentTime + 0.05);
+        oscillator.frequency.linearRampToValueAtTime(250, ctx.currentTime + 0.1);
+        oscillator.frequency.linearRampToValueAtTime(150, ctx.currentTime + 0.15);
+        oscillator.frequency.linearRampToValueAtTime(200, ctx.currentTime + 0.2);
+        
+        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.15);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+        
+        oscillator.type = 'triangle';
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.25);
+      };
+
       useEffect(() => {
         if (!gameStarted) return;
 
@@ -189,9 +218,11 @@
         if (food.points < 0) {
           playYuck();
         } else {
+          // Play slobbering sound for good food
+          playSlober();
           // Random burp for good food (40% chance)
           if (Math.random() < 0.4) {
-            setTimeout(() => playBurp(), 100);
+            setTimeout(() => playBurp(), 300);
           }
         }
         
