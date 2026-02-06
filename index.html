@@ -71,6 +71,9 @@
       const [gameOver, setGameOver] = useState(false);
       const [bonusChicken, setBonusChicken] = useState(null);
       const [chickensSpawned, setChickensSpawned] = useState(0);
+      const [eatingFood, setEatingFood] = useState(null); // Food currently being eaten
+      const [chewing, setChewing] = useState(false);
+      const [vomitParticles, setVomitParticles] = useState([]);
 
       // Initialize audio context on first user interaction (iOS requirement)
       const initAudio = () => {
@@ -295,38 +298,82 @@
       }, [gameStarted, celebrating, gameOver]);
 
       const eatFood = (food) => {
-        setMouthOpen(true);
+        // Start the eating animation
+        setEatingFood(food);
+        setFoodItems(prev => prev.filter(f => f.id !== food.id));
         
+        // Food flies to mouth (500ms), then process
+        setTimeout(() => {
+          processFood(food);
+          setEatingFood(null);
+        }, 500);
+      };
+
+      const processFood = (food) => {
         // Check if it's a vegetable
         if (food.isVegetable) {
-          const newVeggieCount = vegetablesEaten + 1;
-          setVegetablesEaten(newVeggieCount);
-          playYuck();
+          // Chew and then vomit
+          setChewing(true);
           
-          // Check for game over (3 vegetables)
-          if (newVeggieCount >= 3) {
-            setTimeout(() => {
-              setGameOver(true);
-              setFoodItems([]);
-              playSlideWhistle();
-            }, 500);
-          }
+          setTimeout(() => {
+            setChewing(false);
+            playYuck();
+            
+            // Trigger projectile vomit
+            const particles = [];
+            for (let i = 0; i < 20; i++) {
+              particles.push({
+                id: Date.now() + i,
+                angle: Math.random() * 60 - 30, // -30 to 30 degrees
+                speed: Math.random() * 15 + 10,
+                emoji: ['🤢', '💚', '🟢', '🥦'][Math.floor(Math.random() * 4)],
+                x: 50, // Start from center (mouth position)
+                y: 85, // Start from character mouth
+              });
+            }
+            setVomitParticles(particles);
+            
+            // Clear vomit after animation
+            setTimeout(() => setVomitParticles([]), 1500);
+            
+            const newVeggieCount = vegetablesEaten + 1;
+            setVegetablesEaten(newVeggieCount);
+            
+            // Check for game over (3 vegetables)
+            if (newVeggieCount >= 3) {
+              setTimeout(() => {
+                setGameOver(true);
+                setFoodItems([]);
+                playSlideWhistle();
+              }, 1500);
+            }
+            
+            setFeedback({
+              points: 0,
+              name: `🥦 ${newVeggieCount}/3`,
+              x: 50,
+              y: 85,
+            });
+            setTimeout(() => setFeedback(null), 800);
+          }, 300);
           
-          setFeedback({
-            points: 0,
-            name: `🥦 ${newVeggieCount}/3`,
-            x: food.x,
-            y: food.y,
-          });
         } else {
-          // Good food - add points
+          // Good food - chew and add points
+          setChewing(true);
+          
+          // Chew animation (2 chews)
+          setTimeout(() => setChewing(false), 150);
+          setTimeout(() => setChewing(true), 150);
+          setTimeout(() => setChewing(false), 300);
+          setTimeout(() => setChewing(true), 300);
+          setTimeout(() => setChewing(false), 450);
+          
           const newScore = score + food.points;
           setScore(newScore);
           if (newScore > highScore) setHighScore(newScore);
           
           // Check for milestone
           if (newScore >= currentMilestone && !celebrating) {
-            // Trigger celebration!
             setTimeout(() => startCelebration(), 500);
           }
           
@@ -340,15 +387,11 @@
           setFeedback({
             points: food.points,
             name: food.name,
-            x: food.x,
-            y: food.y,
+            x: 50,
+            y: 85,
           });
+          setTimeout(() => setFeedback(null), 800);
         }
-
-        setFoodItems(prev => prev.filter(f => f.id !== food.id));
-
-        setTimeout(() => setMouthOpen(false), 200);
-        setTimeout(() => setFeedback(null), 800);
       };
 
       const clickBonusChicken = () => {
@@ -387,6 +430,9 @@
         setVegetablesEaten(0); // Reset vegetable counter for new round
         setChickensSpawned(0); // Reset bonus chicken counter for new round
         setBonusChicken(null); // Clear any active bonus chicken
+        setVomitParticles([]); // Clear any vomit
+        setEatingFood(null); // Clear eating animation
+        setChewing(false); // Stop chewing
         playCrowdCheer();
         
         // Create celebration items
@@ -480,6 +526,30 @@
         return () => clearTimeout(spawnTimer);
       }, [gameStarted, celebrating, gameOver, chickensSpawned]);
 
+      // Animate vomit particles
+      useEffect(() => {
+        if (vomitParticles.length === 0) return;
+
+        let frame = 0;
+        const animateInterval = setInterval(() => {
+          frame++;
+          
+          setVomitParticles(prev => prev.map(particle => {
+            const radians = (particle.angle * Math.PI) / 180;
+            const newX = particle.x + Math.sin(radians) * particle.speed * frame * 0.1;
+            const newY = particle.y - Math.cos(radians) * particle.speed * frame * 0.1 + (frame * frame * 0.05); // Gravity
+            
+            return {
+              ...particle,
+              x: newX,
+              y: newY,
+            };
+          }));
+        }, 50);
+
+        return () => clearInterval(animateInterval);
+      }, [vomitParticles.length]);
+
       const startGame = () => {
         initAudio(); // Initialize audio for iOS
         setGameStarted(true);
@@ -495,6 +565,9 @@
         setGameOver(false);
         setBonusChicken(null);
         setChickensSpawned(0);
+        setEatingFood(null);
+        setChewing(false);
+        setVomitParticles([]);
       };
 
       const resetGame = () => {
@@ -511,6 +584,9 @@
         setGameOver(false);
         setBonusChicken(null);
         setChickensSpawned(0);
+        setEatingFood(null);
+        setChewing(false);
+        setVomitParticles([]);
       };
 
       return (
@@ -632,12 +708,12 @@
                     </div>
                     
                     {/* Mouth */}
-                    <div className={`absolute bottom-8 left-1/2 transform -translate-x-1/2 transition-all duration-200 ${
-                      mouthOpen 
-                        ? 'w-16 h-16 rounded-full bg-gray-900' 
+                    <div className={`absolute bottom-8 left-1/2 transform -translate-x-1/2 transition-all duration-100 ${
+                      chewing 
+                        ? 'w-14 h-14 rounded-full bg-gray-900' 
                         : 'w-12 h-6 rounded-full bg-gray-900'
                     }`}>
-                      {mouthOpen && (
+                      {chewing && (
                         <div className="absolute inset-2 bg-red-600 rounded-full"></div>
                       )}
                     </div>
@@ -677,6 +753,39 @@
                   🍗
                 </button>
               )}
+
+              {/* Flying Food Animation */}
+              {eatingFood && (
+                <div
+                  className="absolute pointer-events-none z-30 transition-all duration-500 ease-in"
+                  style={{
+                    left: '50%',
+                    top: '85%',
+                    transform: 'translate(-50%, -50%)',
+                    fontSize: '9rem',
+                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))',
+                  }}
+                >
+                  {eatingFood.emoji}
+                </div>
+              )}
+
+              {/* Vomit Particles */}
+              {vomitParticles.map(particle => (
+                <div
+                  key={particle.id}
+                  className="absolute pointer-events-none z-30"
+                  style={{
+                    left: `${particle.x}%`,
+                    top: `${particle.y}%`,
+                    fontSize: '2rem',
+                    transition: 'opacity 0.3s',
+                    opacity: particle.y > 100 ? 0 : 1,
+                  }}
+                >
+                  {particle.emoji}
+                </div>
+              ))}
 
               {/* Celebration Items */}
               {celebrating && celebrationItems.map(item => (
