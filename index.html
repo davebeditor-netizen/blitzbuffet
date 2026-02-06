@@ -62,6 +62,11 @@
       const [gameStarted, setGameStarted] = useState(false);
       const [highScore, setHighScore] = useState(0);
       const [audioContext, setAudioContext] = useState(null);
+      const [speedMultiplier, setSpeedMultiplier] = useState(1);
+      const [currentMilestone, setCurrentMilestone] = useState(500);
+      const [celebrating, setCelebrating] = useState(false);
+      const [celebrationItems, setCelebrationItems] = useState([]);
+      const [celebrationType, setCelebrationType] = useState('candy'); // alternates between 'candy' and 'figure8'
 
       // Initialize audio context on first user interaction (iOS requirement)
       const initAudio = () => {
@@ -172,8 +177,36 @@
         oscillator.stop(ctx.currentTime + 0.25);
       };
 
+      // Generate crowd cheer sound
+      const playCrowdCheer = () => {
+        const ctx = initAudio();
+        if (!ctx) return;
+        
+        // Create multiple oscillators for a "crowd" effect
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => {
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            // Rising cheer sound
+            oscillator.frequency.setValueAtTime(200 + Math.random() * 300, ctx.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(600 + Math.random() * 400, ctx.currentTime + 0.5);
+            
+            gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            
+            oscillator.type = 'sine';
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.5);
+          }, i * 50);
+        }
+      };
+
       useEffect(() => {
-        if (!gameStarted) return;
+        if (!gameStarted || celebrating) return;
 
         const interval = setInterval(() => {
           // Add new food item
@@ -183,17 +216,17 @@
             id: Date.now() + Math.random(),
             x: Math.random() * 80 + 5, // 5-85% from left
             y: -10, // Start above screen
-            speed: Math.random() * 2 + 2, // Random speed
+            speed: (Math.random() * 2 + 2) * speedMultiplier, // Speed increases with multiplier
           };
           
           setFoodItems(prev => [...prev, newFood]);
         }, 1500);
 
         return () => clearInterval(interval);
-      }, [gameStarted]);
+      }, [gameStarted, celebrating, speedMultiplier]);
 
       useEffect(() => {
-        if (!gameStarted) return;
+        if (!gameStarted || celebrating) return;
 
         const moveInterval = setInterval(() => {
           setFoodItems(prev => 
@@ -204,15 +237,19 @@
         }, 50);
 
         return () => clearInterval(moveInterval);
-      }, [gameStarted]);
+      }, [gameStarted, celebrating]);
 
       const eatFood = (food) => {
         setMouthOpen(true);
-        setScore(prev => {
-          const newScore = prev + food.points;
-          if (newScore > highScore) setHighScore(newScore);
-          return newScore;
-        });
+        const newScore = score + food.points;
+        setScore(newScore);
+        if (newScore > highScore) setHighScore(newScore);
+        
+        // Check for milestone
+        if (newScore >= currentMilestone && !celebrating) {
+          // Trigger celebration!
+          setTimeout(() => startCelebration(), 500);
+        }
         
         // Play yuck sound for vegetables (negative points)
         if (food.points < 0) {
@@ -239,12 +276,87 @@
         setTimeout(() => setFeedback(null), 800);
       };
 
+      const startCelebration = () => {
+        setCelebrating(true);
+        setFoodItems([]); // Clear existing food
+        playCrowdCheer();
+        
+        // Create celebration items
+        const items = [];
+        const emojis = celebrationType === 'candy' 
+          ? ['🍬', '🍭', '🍫', '🍰', '🎉', '⭐', '✨']
+          : ['🍕', '🍔', '🍗', '🌮', '🍖', '🥓', '🍩'];
+        
+        for (let i = 0; i < 15; i++) {
+          items.push({
+            id: Date.now() + Math.random(),
+            emoji: emojis[Math.floor(Math.random() * emojis.length)],
+            x: Math.random() * 80 + 10,
+            y: Math.random() * 80 + 10,
+            angle: Math.random() * Math.PI * 2,
+            speed: 0,
+          });
+        }
+        setCelebrationItems(items);
+        
+        // End celebration after 7 seconds
+        setTimeout(() => {
+          setCelebrating(false);
+          setCelebrationItems([]);
+          setCurrentMilestone(prev => prev + 500);
+          setSpeedMultiplier(prev => prev * 1.5);
+          setCelebrationType(prev => prev === 'candy' ? 'figure8' : 'candy');
+        }, 7000);
+      };
+
+      // Animate celebration items
+      useEffect(() => {
+        if (!celebrating || celebrationItems.length === 0) return;
+
+        let animationFrame = 0;
+        const animateInterval = setInterval(() => {
+          animationFrame++;
+          
+          setCelebrationItems(prev => prev.map((item, index) => {
+            if (celebrationType === 'candy') {
+              // Dancing/bouncing animation
+              return {
+                ...item,
+                x: item.x + Math.sin(animationFrame * 0.1 + index) * 2,
+                y: item.y + Math.cos(animationFrame * 0.1 + index) * 2,
+                angle: item.angle + 0.1,
+              };
+            } else {
+              // Figure-8 pattern
+              const t = (animationFrame + index * 20) * 0.05;
+              const centerX = 50;
+              const centerY = 40;
+              const radius = 25;
+              
+              return {
+                ...item,
+                x: centerX + radius * Math.sin(t),
+                y: centerY + radius * Math.sin(t) * Math.cos(t),
+                angle: t,
+              };
+            }
+          }));
+        }, 50);
+
+        return () => clearInterval(animateInterval);
+      }, [celebrating, celebrationItems.length, celebrationType]);
+
       const startGame = () => {
         initAudio(); // Initialize audio for iOS
         setGameStarted(true);
         setScore(0);
         setFoodItems([]);
         setFeedback(null);
+        setSpeedMultiplier(1);
+        setCurrentMilestone(500);
+        setCelebrating(false);
+        setCelebrationItems([]);
+        setCelebrationType('candy');
       };
 
       const resetGame = () => {
@@ -252,6 +364,11 @@
         setScore(0);
         setFoodItems([]);
         setFeedback(null);
+        setSpeedMultiplier(1);
+        setCurrentMilestone(500);
+        setCelebrating(false);
+        setCelebrationItems([]);
+        setCelebrationType('candy');
       };
 
       return (
@@ -370,7 +487,7 @@
               </div>
 
               {/* Food Items */}
-              {foodItems.map(food => (
+              {!celebrating && foodItems.map(food => (
                 <button
                   key={food.id}
                   onClick={() => eatFood(food)}
@@ -385,6 +502,42 @@
                   {food.emoji}
                 </button>
               ))}
+
+              {/* Celebration Items */}
+              {celebrating && celebrationItems.map(item => (
+                <div
+                  key={item.id}
+                  className="absolute pointer-events-none animate-pulse"
+                  style={{
+                    left: `${item.x}%`,
+                    top: `${item.y}%`,
+                    fontSize: '6rem',
+                    transform: `rotate(${item.angle}rad)`,
+                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))',
+                    transition: 'all 0.05s linear',
+                  }}
+                >
+                  {item.emoji}
+                </div>
+              ))}
+
+              {/* Celebration Message */}
+              {celebrating && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
+                  <div className="bg-yellow-300 border-8 border-red-700 px-12 py-6 rounded-lg" style={{
+                    boxShadow: '0 10px 0 #8B0000, 0 15px 20px rgba(0,0,0,0.5)'
+                  }}>
+                    <div className="text-6xl font-black text-red-700 animate-bounce" style={{
+                      textShadow: '4px 4px 0 #000, -2px -2px 0 #fff'
+                    }}>
+                      {currentMilestone} POINTS!
+                    </div>
+                    <div className="text-3xl font-black text-gray-800 text-center mt-2">
+                      🎉 LEVEL UP! 🎉
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Feedback */}
               {feedback && (
