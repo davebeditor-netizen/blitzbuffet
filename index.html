@@ -69,6 +69,8 @@
       const [celebrationType, setCelebrationType] = useState('candy'); // alternates between 'candy' and 'figure8'
       const [vegetablesEaten, setVegetablesEaten] = useState(0);
       const [gameOver, setGameOver] = useState(false);
+      const [bonusChicken, setBonusChicken] = useState(null);
+      const [chickensSpawned, setChickensSpawned] = useState(0);
 
       // Initialize audio context on first user interaction (iOS requirement)
       const initAudio = () => {
@@ -230,6 +232,34 @@
         oscillator.stop(ctx.currentTime + 2);
       };
 
+      // Generate chicken clucking sound
+      const playChickenCluck = () => {
+        const ctx = initAudio();
+        if (!ctx) return;
+        
+        // Multiple quick clucks
+        for (let i = 0; i < 3; i++) {
+          setTimeout(() => {
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            // Quick cluck sound
+            oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.08);
+            
+            gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+            
+            oscillator.type = 'square';
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.08);
+          }, i * 150);
+        }
+      };
+
       useEffect(() => {
         if (!gameStarted || celebrating || gameOver) return;
 
@@ -321,10 +351,42 @@
         setTimeout(() => setFeedback(null), 800);
       };
 
+      const clickBonusChicken = () => {
+        if (!bonusChicken) return;
+        
+        // Award 100 points
+        const newScore = score + 100;
+        setScore(newScore);
+        if (newScore > highScore) setHighScore(newScore);
+        
+        // Play chicken sounds
+        playChickenCluck();
+        
+        // Show bonus feedback
+        setFeedback({
+          points: 100,
+          name: 'BONUS!',
+          x: bonusChicken.x,
+          y: bonusChicken.y,
+        });
+        
+        // Check for milestone
+        if (newScore >= currentMilestone && !celebrating) {
+          setTimeout(() => startCelebration(), 500);
+        }
+        
+        // Remove chicken
+        setBonusChicken(null);
+        
+        setTimeout(() => setFeedback(null), 800);
+      };
+
       const startCelebration = () => {
         setCelebrating(true);
         setFoodItems([]); // Clear existing food
         setVegetablesEaten(0); // Reset vegetable counter for new round
+        setChickensSpawned(0); // Reset bonus chicken counter for new round
+        setBonusChicken(null); // Clear any active bonus chicken
         playCrowdCheer();
         
         // Create celebration items
@@ -392,6 +454,32 @@
         return () => clearInterval(animateInterval);
       }, [celebrating, celebrationItems.length, celebrationType]);
 
+      // Spawn bonus chicken twice per round
+      useEffect(() => {
+        if (!gameStarted || celebrating || gameOver || chickensSpawned >= 2) return;
+
+        // Random delay between 3-15 seconds before spawning
+        const spawnDelay = Math.random() * 12000 + 3000;
+        
+        const spawnTimer = setTimeout(() => {
+          // Spawn chicken at random position
+          setBonusChicken({
+            x: Math.random() * 70 + 15, // 15-85% from left
+            y: Math.random() * 60 + 20, // 20-80% from top
+            id: Date.now(),
+          });
+          
+          setChickensSpawned(prev => prev + 1);
+          
+          // Remove after 1.5 seconds
+          setTimeout(() => {
+            setBonusChicken(null);
+          }, 1500);
+        }, spawnDelay);
+
+        return () => clearTimeout(spawnTimer);
+      }, [gameStarted, celebrating, gameOver, chickensSpawned]);
+
       const startGame = () => {
         initAudio(); // Initialize audio for iOS
         setGameStarted(true);
@@ -405,6 +493,8 @@
         setCelebrationType('candy');
         setVegetablesEaten(0);
         setGameOver(false);
+        setBonusChicken(null);
+        setChickensSpawned(0);
       };
 
       const resetGame = () => {
@@ -419,6 +509,8 @@
         setCelebrationType('candy');
         setVegetablesEaten(0);
         setGameOver(false);
+        setBonusChicken(null);
+        setChickensSpawned(0);
       };
 
       return (
@@ -567,6 +659,22 @@
                   {food.emoji}
                 </button>
               ))}
+
+              {/* Bonus Chicken Bucket */}
+              {bonusChicken && !celebrating && (
+                <button
+                  onClick={clickBonusChicken}
+                  className="absolute cursor-pointer animate-pulse z-30"
+                  style={{
+                    left: `${bonusChicken.x}%`,
+                    top: `${bonusChicken.y}%`,
+                    fontSize: '10rem',
+                    filter: 'drop-shadow(0 8px 16px rgba(255,215,0,0.8))',
+                  }}
+                >
+                  🍗
+                </button>
+              )}
 
               {/* Celebration Items */}
               {celebrating && celebrationItems.map(item => (
