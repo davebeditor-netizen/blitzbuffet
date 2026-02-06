@@ -553,22 +553,24 @@
           ) : (
             <>
               {/* Score Display */}
-              <div className="absolute top-8 left-8 bg-yellow-300 border-4 border-red-700 px-6 py-3 rounded-lg z-20" style={{
-                boxShadow: '0 6px 0 #8B0000'
+              <div className="absolute top-4 left-4 bg-yellow-300 border-4 border-red-700 px-4 py-2 rounded-lg z-20" style={{
+                boxShadow: '0 6px 0 #8B0000',
+                maxWidth: '45%'
               }}>
-                <div className="text-4xl font-black text-red-700">
+                <div className="text-3xl font-black text-red-700 leading-tight">
                   SCORE: {score}
                 </div>
-                <div className="text-sm font-bold text-gray-700">
+                <div className="text-xs font-bold text-gray-700">
                   HIGH: {highScore}
                 </div>
               </div>
 
-              {/* Vegetable Counter - moved to top right */}
-              <div className="absolute top-8 right-8 bg-red-600 border-4 border-black px-6 py-3 rounded-lg z-20" style={{
-                boxShadow: '0 6px 0 #000'
+              {/* Vegetable Counter - side by side */}
+              <div className="absolute top-4 right-4 bg-red-600 border-4 border-black px-4 py-2 rounded-lg z-20" style={{
+                boxShadow: '0 6px 0 #000',
+                maxWidth: '45%'
               }}>
-                <div className="text-3xl font-black text-white">
+                <div className="text-3xl font-black text-white leading-tight">
                   🥦 {vegetablesEaten}/3
                 </div>
               </div>
